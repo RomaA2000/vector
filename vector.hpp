@@ -277,26 +277,42 @@ class vector {
     }
   }
 
-  void reserve(size_t n) {
+  void reserve(size_t n) const noexcept {
 
   }
 
-  T const & back() const {
-    return *(get_data_ptr() + size() - 1);
+  T const & back() const noexcept {
+    if (small()) {
+      return std::get<1>(data_);
+    } else {
+      return *(get_data_ptr() + size() - 1);
+    }
   }
 
-  T & back() {
+  T & back() noexcept {
     detach();
-    return *(get_data_ptr() + size() - 1);
+    if (small()) {
+      return std::get<1>(data_);
+    } else {
+      return *(get_data_ptr() + size() - 1);
+    }
   }
 
-  T const & front() const {
-    return *get_data_ptr();
+  T const & front() const noexcept {
+    if (small()) {
+      return std::get<1>(data_);
+    } else {
+      return *(get_data_ptr());
+    }
   }
 
-  T & front() {
+  T & front() noexcept {
     detach();
-    return *get_data_ptr();
+    if (small()) {
+      return std::get<1>(data_);
+    } else {
+      return *(get_data_ptr());
+    }
   }
 
   vector & operator=(vector const &in) {
