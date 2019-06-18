@@ -8,6 +8,14 @@
 #include <memory>
 #include <variant>
 
+struct vector_iterator {
+
+};
+
+struct const_vector_iterator {
+
+};
+
 template<typename T>
 class vector {
  private:
@@ -122,10 +130,12 @@ class vector {
   void push_back_long(T const &in) {
     if (get_size() >= get_capacity()) {
       helper* new_helper = big_safe_copy(get_capacity() * 2);
+      construct(new_helper->get_ptr() + get_size(), in);
       forget_helper();
       data_ = new_helper;
+    } else {
+      construct(get_data_ptr() + get_size(), in);
     }
-    construct(get_data_ptr() + get_size(), in);
     ++get_helper()->size;
   }
  public:
@@ -163,15 +173,15 @@ class vector {
         helper *new_data = alloc(8);
         new_data->size = 2;
         try {
-          construct(new_data->get_ptr(), std::get<1>(data_));
+          construct(new_data->get_ptr() + 1, in);
         } catch (...) {
+          destruct(new_data->get_ptr());
           dealloc(new_data);
           throw;
         }
         try {
-          construct(new_data->get_ptr() + 1, in);
+          construct(new_data->get_ptr(), std::get<1>(data_));
         } catch (...) {
-          destruct(new_data->get_ptr());
           dealloc(new_data);
           throw;
         }
@@ -265,6 +275,28 @@ class vector {
         ++get_helper()->counter;
       }
     }
+  }
+
+  void reserve(size_t n) {
+
+  }
+
+  T const & back() const {
+    return *(get_data_ptr() + size() - 1);
+  }
+
+  T & back() {
+    detach();
+    return *(get_data_ptr() + size() - 1);
+  }
+
+  T const & front() const {
+    return *get_data_ptr();
+  }
+
+  T & front() {
+    detach();
+    return *get_data_ptr();
   }
 
   vector & operator=(vector const &in) {
