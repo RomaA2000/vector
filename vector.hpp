@@ -271,7 +271,7 @@ class vector {
     clear();
     data_ = in.data_;
     if (!in.small()) {
-      ++std::get<0>(in.data_)->counter;
+      ++get_helper()->counter;
     }
     return * this;
   }
