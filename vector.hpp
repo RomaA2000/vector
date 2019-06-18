@@ -42,12 +42,43 @@ class vector {
     new(pointer) T(*copy);
   }
 
-  void destruct(T *pointer) {
+  void destruct(T *pointer) noexcept {
     pointer->~T();
+  }
+
+  helper * big_safe_copy(size_t n) {
+    helper *new_data = alloc(n);
+    size_t i = 0;
+    try {
+      for (; i < std::min(get_size(), n); ++i) {
+        construct(new_data->get_ptr() + i, get_data_ptr() + i);
+      }
+    } catch (...) {
+      big_safe_destruct(new_data->get_ptr(), i);
+      dealloc(new_data);
+      throw;
+    }
+    new_data->size = get_size();
+    new_data->capacity = n;
+    new_data->counter = 0;
+    return new_data;
+  }
+
+  void big_safe_destruct(T* ptr, size_t n) noexcept {
+    for (size_t j = 0; j < n; j++) {
+      destruct(ptr + j);
+    }
   }
 
   void dealloc(helper *in) {
     operator delete(static_cast<void *>(in));
+  }
+
+  void forget_helper() {
+    assert(data_.index() == 0);
+    big_safe_destruct(get_data_ptr(), get_size());
+    dealloc(std::get<0>(data_));
+    std::get<0>(data_) = nullptr;
   }
   // typedef std::allocator_traits<Allocator> allocator_traits;
   // typedef typename allocator_traits::template rebind_alloc<uint8_t> rebinded_allocator;
@@ -77,33 +108,20 @@ class vector {
 
   void detach() {
     if ((data_.index() == 0) && (get_helper() != nullptr) && (get_helper()->counter > 0)) {
-      helper *new_data = alloc(get_capacity());
-      size_t i = 0;
-      try {
-        for (; i < get_size(); ++i) {
-          construct(new_data->get_ptr() + i, get_data_ptr() + i);
-        }
-      } catch (...) {
-        for (size_t j = 0; j < i; j++) {
-          destruct(new_data->get_ptr() + j);
-        }
-        dealloc(new_data);
-        throw;
-      }
+      helper* new_data = big_safe_copy(get_capacity());
       --get_helper()->counter;
-      new_data->size = get_size();
-      new_data->capacity = get_capacity();
       data_ = new_data;
     }
   }
 
   void push_back_long(T const &in) {
-    if (get_size() < get_capacity()) {
-      construct(get_data_ptr() + get_size(), in);
-      ++get_helper()->size;
-    } else {
-
+    if (get_size() >= get_capacity()) {
+      helper* new_helper = big_safe_copy(get_capacity() * 2);
+      forget_helper();
+      data_ = new_helper;
     }
+    construct(get_data_ptr() + get_size(), in);
+    ++get_helper()->size;
   }
  public:
   // typedef std::reverse_iterator<iterator> reverse_iterator;
@@ -146,7 +164,7 @@ class vector {
       data_ = in;
     } else {
       if (small()) {
-        helper *new_data = alloc(10000);
+        helper *new_data = alloc(2);
         new_data->size = 2;
         try {
           construct(new_data->get_ptr(), std::get<1>(data_));
@@ -170,6 +188,18 @@ class vector {
 
   T &operator[](size_t i) {
     detach();
+    if (small()) {
+      assert(i == 0);
+      return std::get<1>(data_);
+    } else {
+      assert(data_.index() == 0);
+      assert(get_helper() != nullptr);
+      assert(i < get_size());
+      return *(get_data_ptr() + i);
+    }
+  }
+
+  T const &operator[](size_t i) const {
     if (small()) {
       assert(i == 0);
       return std::get<1>(data_);
@@ -207,18 +237,6 @@ class vector {
 
   T* end() const {
     return get_data_ptr() + size();
-  }
-
-  T const &operator[](size_t i) const {
-    if (small()) {
-      assert(i == 0);
-      return std::get<1>(data_);
-    } else {
-      assert(data_.index() == 0);
-      assert(get_helper() != nullptr);
-      assert(i < get_size());
-      return *(get_data_ptr() + i);
-    }
   }
 
   void pop_back() {
