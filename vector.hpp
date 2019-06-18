@@ -34,10 +34,12 @@ class vector {
 
   template<typename ...Args>
   void construct(T *pointer, Args const &... args) {
+    assert(pointer != nullptr);
     new(pointer) T(args...);
   }
 
   void construct(T *pointer, T *copy) {
+    assert(pointer != nullptr);
     assert(copy != nullptr);
     new(pointer) T(*copy);
   }
@@ -80,8 +82,6 @@ class vector {
     dealloc(std::get<0>(data_));
     std::get<0>(data_) = nullptr;
   }
-  // typedef std::allocator_traits<Allocator> allocator_traits;
-  // typedef typename allocator_traits::template rebind_alloc<uint8_t> rebinded_allocator;
   typedef std::variant<helper *, T> variant;
 
   variant data_;
@@ -99,6 +99,11 @@ class vector {
   size_t get_size() const noexcept {
     assert(get_helper() != nullptr);
     return get_helper()->size;
+  }
+
+  size_t get_counter() const noexcept {
+    assert(get_helper() != nullptr);
+    return get_helper()->counter;
   }
 
   T *get_data_ptr() const noexcept {
@@ -131,16 +136,7 @@ class vector {
   vector() noexcept = default;
 
   ~vector() noexcept {
-    if (!small()) {
-      if (get_helper()->counter == 0) {
-        for (size_t j = 0; j < get_size(); ++j) {
-          destruct(get_data_ptr() + j);
-        }
-        dealloc(get_helper());
-      } else {
-        --get_helper()->counter;
-      }
-    }
+    clear();
   }
 
   bool small() const noexcept {
@@ -148,7 +144,7 @@ class vector {
   }
 
   bool empty() const noexcept {
-    return ((data_.index() == 0) && ((get_helper() == nullptr) || (get_helper()->size == 0)));
+    return ((data_.index() == 0) && ((get_helper() == nullptr) || (get_size() == 0)));
   }
 
   size_t size() const noexcept {
@@ -164,7 +160,7 @@ class vector {
       data_ = in;
     } else {
       if (small()) {
-        helper *new_data = alloc(2);
+        helper *new_data = alloc(8);
         new_data->size = 2;
         try {
           construct(new_data->get_ptr(), std::get<1>(data_));
@@ -212,7 +208,16 @@ class vector {
   }
 
   void clear() {
-
+    if (!small()) {
+      if (get_counter() == 0) {
+        forget_helper();
+      } else {
+        --get_helper()->counter;
+        data_ = nullptr;
+      }
+    } else {
+      data_ = nullptr;
+    }
   }
 
   void erase(...) {
@@ -224,7 +229,7 @@ class vector {
   }
 
   bool unique() const noexcept {
-    return data_.index() == 1 || (get_helper() == nullptr || get_helper()->counter == 0);
+    return data_.index() == 1 || (get_helper() == nullptr || get_counter() == 0);
   }
 
   T* begin() const {
@@ -232,7 +237,7 @@ class vector {
   }
 
   size_t use_count() {
-    return small() ? 0 : get_helper()->counter;
+    return small() ? 0 : get_counter();
   }
 
   T* end() const {
@@ -260,6 +265,15 @@ class vector {
         ++get_helper()->counter;
       }
     }
+  }
+
+  vector & operator=(vector const &in) {
+    clear();
+    data_ = in.data_;
+    if (!in.small()) {
+      ++std::get<0>(in.data_)->counter;
+    }
+    return * this;
   }
 };
 
