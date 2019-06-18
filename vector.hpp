@@ -130,7 +130,13 @@ class vector {
   void push_back_long(T const &in) {
     if (get_size() >= get_capacity()) {
       helper* new_helper = big_safe_copy(get_capacity() * 2);
-      construct(new_helper->get_ptr() + get_size(), in);
+      try {
+        construct(new_helper->get_ptr() + get_size(), in);
+      } catch (...) {
+        big_safe_destruct(new_helper->get_ptr(), get_size());
+        dealloc(new_helper);
+        throw;
+      }
       forget_helper();
       data_ = new_helper;
     } else {
@@ -139,8 +145,6 @@ class vector {
     ++get_helper()->size;
   }
  public:
-  // typedef std::reverse_iterator<iterator> reverse_iterator;
-  // typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
   static_assert((sizeof(data_)) <= (sizeof(void *) + std::max(sizeof(T), sizeof(void *))));
 
   vector() noexcept = default;
@@ -166,8 +170,13 @@ class vector {
 
   void push_back(T const &in) {
     detach();
-    if (empty()) {
-      data_ = in;
+    if (empty() && (get_helper() == nullptr)) {
+      try {
+        data_ = in;
+      } catch (...) {
+        data_ = nullptr;
+        throw;
+      }
     } else {
       if (small()) {
         helper *new_data = alloc(8);
@@ -175,13 +184,13 @@ class vector {
         try {
           construct(new_data->get_ptr() + 1, in);
         } catch (...) {
-          destruct(new_data->get_ptr());
           dealloc(new_data);
           throw;
         }
         try {
           construct(new_data->get_ptr(), std::get<1>(data_));
         } catch (...) {
+          destruct(new_data->get_ptr() + 1);
           dealloc(new_data);
           throw;
         }
@@ -242,6 +251,20 @@ class vector {
     return data_.index() == 1 || (get_helper() == nullptr || get_counter() == 0);
   }
 
+  T* data() {
+    if (empty()) {
+      return nullptr;
+    }
+    return small() ? &(std::get<1>(data_)) : get_data_ptr();
+  }
+
+  const T* data() const {
+    if (empty()) {
+      return nullptr;
+    }
+    return small() ? &(std::get<1>(data_)) : get_data_ptr();
+  }
+
   T* begin() const {
     return get_data_ptr();
   }
@@ -265,20 +288,36 @@ class vector {
   }
 
   vector(vector const &in) : vector() {
-    if (&in != this) {
-      if (in.small()) {
-        if (!in.empty()) {
-          push_back(in[0]);
-        }
-      } else {
-        data_ = in.get_helper();
-        ++get_helper()->counter;
+    if (in.small()) {
+      if (!in.empty()) {
+        push_back(in[0]);
       }
+    } else {
+      data_ = in.get_helper();
+      ++get_helper()->counter;
     }
   }
 
-  void reserve(size_t n) const noexcept {
-
+  void reserve(size_t n) {
+    if (empty()) {
+      helper *new_data = alloc(8 + n);
+      new_data->size = 0;
+      data_ = new_data;
+    } else if (small() && (n > 0)) {
+      helper *new_data = alloc(8 + n);
+      new_data->size = 1;
+      try {
+        construct(new_data->get_ptr(), std::get<1>(data_));
+      } catch (...) {
+        dealloc(new_data);
+        throw;
+      }
+      data_ = new_data;
+    } else if (n > 0) {
+      helper *new_helper = big_safe_copy(get_capacity() + n);
+      forget_helper();
+      data_ = new_helper;
+    }
   }
 
   T const & back() const noexcept {
@@ -289,7 +328,7 @@ class vector {
     }
   }
 
-  T & back() noexcept {
+  T & back() {
     detach();
     if (small()) {
       return std::get<1>(data_);
@@ -306,7 +345,7 @@ class vector {
     }
   }
 
-  T & front() noexcept {
+  T & front() {
     detach();
     if (small()) {
       return std::get<1>(data_);
@@ -323,6 +362,96 @@ class vector {
     }
     return * this;
   }
+
+  void swap(vector &in) {
+    if (&in != this) {
+      bool d1 = data_.index() == 0;
+      bool d2 = in.data_.index() == 0;
+      if (d1 && d2) {
+        std::swap(data_, in.data_);
+      } else if (!d1 && d2) {
+        in.swap(*this);
+      } else if (d1) {
+        helper *tmp = get_helper();
+        try {
+          data_ = in.data_;
+        } catch (...) {
+          in.data_ = nullptr;
+          data_ = tmp;
+          throw;
+        }
+        in.data_ = tmp;
+      } else {
+        try {
+          std::swap(data_, in.data_);
+        } catch (...) {
+          data_ = nullptr;
+          in.data_ = nullptr;
+          throw;
+        }
+      }
+    }
+  }
+  template <typename C>
+  friend bool operator==(vector<C> const&, vector<C> const &) noexcept;
+  template <typename C>
+  friend bool operator!=(vector<C> const&, vector<C> const &) noexcept;
+  template <typename C>
+  friend bool operator<=(vector<C> const&, vector<C> const &) noexcept;
+  template <typename C>
+  friend bool operator>=(vector<C> const&, vector<C> const &) noexcept;
+  template <typename C>
+  friend bool operator<(vector<C> const&, vector<C> const &) noexcept;
+  template <typename C>
+  friend bool operator>(vector<C> const&, vector<C> const &) noexcept;
 };
+
+template <typename C>
+void swap(vector<C> &in1, vector<C> &in2) {
+  in1.swap(in2);
+}
+
+template<typename C>
+bool operator==(const vector<C> &in1, const vector<C> &in2) noexcept {
+  if (in1.size() != in2.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < in1.size(); ++i) {
+    if (in1[i] != in2[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+template<typename C>
+bool operator!=(const vector<C> &in1, const vector<C> &in2) noexcept {
+  return !(in1 == in2);
+}
+
+template<typename C>
+bool operator<=(const vector<C> &in1, const vector<C> &in2) noexcept {
+  return (in1 < in2) || (in1 == in2);
+}
+
+template<typename C>
+bool operator>=(const vector<C> &in1, const vector<C> &in2) noexcept {
+  return (in1 > in2) || (in1 == in2);
+}
+
+template<typename C>
+bool operator<(const vector<C> &in1, const vector<C> &in2) noexcept {
+  for (size_t i = 0; i < std::min(in1.size(), in2.size()); ++i) {
+    if (in1[i] != in2[i]) {
+      return (in1[i] < in2[i]);
+    }
+  }
+  return in1.size() < in2.size();
+}
+
+template<typename C>
+bool operator>(const vector<C> &in1, const vector<C> &in2) noexcept {
+  return in2 < in1;
+}
 
 #endif //VECTOR_VECTOR_HPP
