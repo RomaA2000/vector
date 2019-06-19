@@ -10,8 +10,8 @@
 template<typename T>
 struct vector_iterator {
  private:
-  template<typename> friend class vector;
-
+  template<typename> friend struct vector;
+  template<typename> friend struct const_vector_iterator;
   explicit vector_iterator(T* in) : pointer_(in) {}
 
   T* pointer_ = nullptr;
@@ -71,7 +71,7 @@ struct vector_iterator {
     return *this;
   }
 
-  friend size_t operator-(vector_iterator const& in1, vector_iterator const& in2) {
+  friend difference_type operator-(vector_iterator const& in1, vector_iterator const& in2) {
     return in1.pointer_ - in2.pointer_;
   }
 
@@ -126,6 +126,7 @@ struct const_vector_iterator {
   typedef T const & reference;
   const_vector_iterator() = default;
   const_vector_iterator(const_vector_iterator const&) = default;
+  const_vector_iterator(vector_iterator<T> const&in) : pointer_(in.pointer_) {}
   const_vector_iterator& operator=(const_vector_iterator const&) = default;
 
   reference operator[](size_t i) {
@@ -172,7 +173,7 @@ struct const_vector_iterator {
     return *this;
   }
 
-  friend size_t operator-(const_vector_iterator const& in1, const_vector_iterator const& in2) {
+  friend difference_type operator-(const_vector_iterator const& in1, const_vector_iterator const& in2) {
     return in1.pointer_ - in2.pointer_;
   }
 
@@ -440,14 +441,6 @@ class vector {
     }
   }
 
-  void erase(...) {
-
-  }
-
-  void insert(...) {
-
-  }
-
   bool unique() const noexcept {
     return data_.index() == 1 || (get_helper() == nullptr || get_counter() == 0);
   }
@@ -469,20 +462,32 @@ class vector {
 
   iterator begin()  {
     detach();
+    if (empty()) {
+      return iterator(nullptr);
+    }
     return small() ? iterator(&(std::get<1>(data_))) : iterator(get_data_ptr());
   }
 
   iterator end() {
     detach();
-    return small() ? iterator(&(std::get<1>(data_))) : iterator(get_data_ptr() + size());
+    if (empty()) {
+      return iterator(nullptr);
+    }
+    return small() ? iterator(&(std::get<1>(data_)) + 1) : iterator(get_data_ptr() + size());
   }
 
   const_iterator begin() const noexcept {
+    if (empty()) {
+      return iterator(nullptr);
+    }
     return small() ? const_iterator(&(std::get<1>(data_))) : const_iterator(get_data_ptr());
   }
 
   const_iterator end() const noexcept {
-    return small() ? const_iterator(&(std::get<1>(data_))) : const_iterator(get_data_ptr() + size());
+    if (empty()) {
+      return iterator(nullptr);
+    }
+    return small() ? const_iterator(&(std::get<1>(data_)) + 1) : const_iterator(get_data_ptr() + size());
   }
 
   const_iterator cbegin() const noexcept {
@@ -498,7 +503,7 @@ class vector {
     return reverse_iterator(end());
   }
 
-  reverse_iterator rend() noexcept(false) {
+  reverse_iterator rend() {
     return reverse_iterator(begin());
   }
 
@@ -518,6 +523,63 @@ class vector {
     return const_reverse_iterator(cbegin());
   }
 
+  void erase(const_iterator i1, const_iterator i2) {
+    detach();
+    if (i2 == end()) {
+      for (;i1 != i2; --i2) {
+        pop_back();
+      }
+    } else {
+      size_t pl = i1 - cbegin();
+      size_t pr = i2 - cbegin();
+      size_t size = get_size() - (i2 - i1);
+      vector tmp;
+      tmp.reserve(size * 2 + 1);
+      size_t i = 0;
+      try {
+        for (;i < pl ;++i) {
+          tmp.push_back((*this)[i]);
+        }
+        i = pr;
+        for (;i < get_size(); ++i) {
+          tmp.push_back((*this)[i]);
+        }
+       } catch (...) {
+        tmp.clear();
+        throw;
+      }
+      *this = tmp;
+    }
+  }
+
+  void erase(const_iterator i1) {
+    erase(i1, i1 + 1);
+  }
+
+  void insert(const_iterator i, const T & in) {
+    detach();
+    if ((empty()) || (i == end())) {
+      push_back(in);
+    } else {
+      vector tmp;
+      tmp.reserve(size() + 1);
+      auto it = cbegin();
+      try {
+        for (;it < i; ++it) {
+          tmp.push_back(*it);
+        }
+        tmp.push_back(in);
+        for (;it < cend(); ++it) {
+          tmp.push_back(*it);
+        }
+      } catch (...) {
+        tmp.clear();
+        throw;
+      }
+      *this = tmp;
+    }
+  }
+
   void pop_back() {
     assert(size() > 0);
     detach();
@@ -533,14 +595,14 @@ class vector {
   }
 
   vector(vector const &in) : vector() {
-    if (in.small()) {
-      if (!in.empty()) {
-        push_back(in[0]);
+      if (in.small()) {
+        if (!in.empty()) {
+          push_back(in[0]);
+        }
+      } else {
+        data_ = in.get_helper();
+        ++get_helper()->counter;
       }
-    } else {
-      data_ = in.get_helper();
-      ++get_helper()->counter;
-    }
   }
 
   void reserve(size_t n) {
