@@ -7,13 +7,208 @@
 
 #include <memory>
 #include <variant>
-
+template<typename T>
 struct vector_iterator {
+ private:
+  template<typename> friend class vector;
 
+  explicit vector_iterator(T* in) : pointer_(in) {}
+
+  T* pointer_ = nullptr;
+
+ public:
+  typedef std::random_access_iterator_tag iterator_category;
+  typedef size_t difference_type;
+  typedef T value_type;
+  typedef T* pointer;
+  typedef T& reference;
+
+  vector_iterator() = default;
+  vector_iterator(vector_iterator const&) = default;
+  vector_iterator& operator=(vector_iterator const&) = default;
+
+  reference operator[](size_t i) {
+    return pointer_[i];
+  }
+
+  reference operator*() const {
+    return *pointer_;
+  }
+
+  pointer operator->() const {
+    return pointer_;
+  }
+
+  vector_iterator& operator++() {
+    ++pointer_;
+    return *this;
+  }
+
+  const vector_iterator operator++(int) {
+    vector_iterator tmp(*this);
+    ++*this;
+    return tmp;
+  }
+
+  vector_iterator& operator--() {
+    --pointer_;
+    return *this;
+  }
+
+  const vector_iterator operator--(int) {
+    vector_iterator tmp(*this);
+    --*this;
+    return tmp;
+  }
+
+  vector_iterator& operator+=(size_t i) {
+    pointer_ += i;
+    return *this;
+  }
+
+  vector_iterator& operator-=(size_t i) {
+    pointer_ -= i;
+    return *this;
+  }
+
+  friend size_t operator-(vector_iterator const& in1, vector_iterator const& in2) {
+    return in1.pointer_ - in2.pointer_;
+  }
+
+  friend vector_iterator operator+(vector_iterator in, size_t i) {
+    in += i;
+    return in;
+  }
+
+  friend vector_iterator operator-(vector_iterator in, size_t i) {
+    in -= i;
+    return in;
+  }
+
+  friend vector_iterator operator+(size_t i, vector_iterator in) {
+    in += i;
+    return in;
+  }
+
+  friend bool operator<(vector_iterator const& in1, vector_iterator const& in2) {
+    return in1.pointer_ < in2.pointer_;
+  }
+  friend bool operator>(vector_iterator const& in1, vector_iterator const& in2) {
+    return in2 < in1;
+  }
+  friend bool operator<=(vector_iterator const& in1, vector_iterator const& in2) {
+    return (in1 < in2) || (in1 == in2);
+  }
+  friend bool operator>=(vector_iterator const& in1, vector_iterator const& in2) {
+    return (in1 > in2) || (in1 == in2);
+  }
+  friend bool operator==(vector_iterator const& in1, vector_iterator const& in2) {
+    return in1.pointer_ == in2.pointer_;
+  }
+  friend bool operator!=(vector_iterator const& in1, vector_iterator const& in2) {
+    return !(in1 == in2);
+  }
 };
 
+template<typename T>
 struct const_vector_iterator {
+ private:
+  template<typename> friend class vector;
 
+  explicit const_vector_iterator(T const * p) : pointer_(p) {}
+
+  T const * pointer_ = nullptr;
+ public:
+  typedef std::random_access_iterator_tag iterator_category;
+  typedef size_t difference_type;
+  typedef T value_type;
+  typedef T const * pointer;
+  typedef T const & reference;
+  const_vector_iterator() = default;
+  const_vector_iterator(const_vector_iterator const&) = default;
+  const_vector_iterator& operator=(const_vector_iterator const&) = default;
+
+  reference operator[](size_t i) {
+    return pointer_[i];
+  }
+
+  reference operator*() const {
+    return *pointer_;
+  }
+
+  pointer operator->() const {
+    return pointer_;
+  }
+
+  const_vector_iterator& operator++() {
+    ++pointer_;
+    return *this;
+  }
+
+  const const_vector_iterator operator++(int) {
+    vector_iterator tmp(*this);
+    ++*this;
+    return tmp;
+  }
+
+  const_vector_iterator& operator--() {
+    --pointer_;
+    return *this;
+  }
+
+  const const_vector_iterator operator--(int) {
+    const_vector_iterator tmp(*this);
+    --*this;
+    return tmp;
+  }
+
+  const_vector_iterator& operator+=(size_t i) {
+    pointer_ += i;
+    return *this;
+  }
+
+  const_vector_iterator& operator-=(size_t i) {
+    pointer_ -= i;
+    return *this;
+  }
+
+  friend size_t operator-(const_vector_iterator const& in1, const_vector_iterator const& in2) {
+    return in1.pointer_ - in2.pointer_;
+  }
+
+  friend const_vector_iterator operator+(const_vector_iterator in, size_t i) {
+    in += i;
+    return in;
+  }
+
+  friend const_vector_iterator operator-(const_vector_iterator in, size_t i) {
+    in -= i;
+    return in;
+  }
+
+  friend const_vector_iterator operator+(size_t i, const_vector_iterator in) {
+    in += i;
+    return in;
+  }
+
+  friend bool operator<(const_vector_iterator const& in1, const_vector_iterator const& in2) {
+    return in1.pointer_ < in2.pointer_;
+  }
+  friend bool operator>(const_vector_iterator const& in1, const_vector_iterator const& in2) {
+    return in2 < in1;
+  }
+  friend bool operator<=(const_vector_iterator const& in1, const_vector_iterator const& in2) {
+    return (in1 < in2) || (in1 == in2);
+  }
+  friend bool operator>=(const_vector_iterator const& in1, const_vector_iterator const& in2) {
+    return (in1 > in2) || (in1 == in2);
+  }
+  friend bool operator==(const_vector_iterator const& in1, const_vector_iterator const& in2) {
+    return in1.pointer_ == in2.pointer_;
+  }
+  friend bool operator!=(const_vector_iterator const& in1, const_vector_iterator const& in2) {
+    return !(in1 == in2);
+  }
 };
 
 template<typename T>
@@ -144,7 +339,13 @@ class vector {
     }
     ++get_helper()->size;
   }
+
  public:
+  typedef vector_iterator<T>       iterator;
+  typedef const_vector_iterator<T> const_iterator;
+  typedef std::reverse_iterator<iterator>         reverse_iterator;
+  typedef std::reverse_iterator<const_iterator>   const_reverse_iterator;
+
   static_assert((sizeof(data_)) <= (sizeof(void *) + std::max(sizeof(T), sizeof(void *))));
 
   vector() noexcept = default;
@@ -252,6 +453,7 @@ class vector {
   }
 
   T* data() {
+    detach();
     if (empty()) {
       return nullptr;
     }
@@ -265,25 +467,68 @@ class vector {
     return small() ? &(std::get<1>(data_)) : get_data_ptr();
   }
 
-  T* begin() const {
-    return get_data_ptr();
+  iterator begin()  {
+    detach();
+    return small() ? iterator(&(std::get<1>(data_))) : iterator(get_data_ptr());
   }
 
-  size_t use_count() {
-    return small() ? 0 : get_counter();
+  iterator end() {
+    detach();
+    return small() ? iterator(&(std::get<1>(data_))) : iterator(get_data_ptr() + size());
   }
 
-  T* end() const {
-    return get_data_ptr() + size();
+  const_iterator begin() const noexcept {
+    return small() ? const_iterator(&(std::get<1>(data_))) : const_iterator(get_data_ptr());
+  }
+
+  const_iterator end() const noexcept {
+    return small() ? const_iterator(&(std::get<1>(data_))) : const_iterator(get_data_ptr() + size());
+  }
+
+  const_iterator cbegin() const noexcept {
+    return begin();
+  }
+
+  const_iterator cend() const noexcept {
+    return end();
+  }
+
+  reverse_iterator rbegin()  {
+    detach();
+    return reverse_iterator(end());
+  }
+
+  reverse_iterator rend() noexcept(false) {
+    return reverse_iterator(begin());
+  }
+
+  const_reverse_iterator rbegin() const noexcept {
+    return const_reverse_iterator(cend());
+  }
+
+  const_reverse_iterator rend() const noexcept {
+    return const_reverse_iterator(cbegin());
+  }
+
+  const_reverse_iterator crbegin() const noexcept {
+    return const_reverse_iterator(cend());
+  }
+
+  const_reverse_iterator crend() const noexcept {
+    return const_reverse_iterator(cbegin());
   }
 
   void pop_back() {
     assert(size() > 0);
+    detach();
     if (small()) {
       data_ = nullptr;
     } else {
       destruct(get_data_ptr() + size() - 1);
       --get_helper()->size;
+      if(get_size() == 0) {
+        clear();
+      }
     }
   }
 
@@ -371,7 +616,7 @@ class vector {
         std::swap(data_, in.data_);
       } else if (!d1 && d2) {
         in.swap(*this);
-      } else if (d1) {
+      } else if (d1 && !d2) {
         helper *tmp = get_helper();
         try {
           data_ = in.data_;
