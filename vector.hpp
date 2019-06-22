@@ -126,7 +126,7 @@ struct const_vector_iterator {
   typedef T const & reference;
   const_vector_iterator() = default;
   const_vector_iterator(const_vector_iterator const&) = default;
-  explicit const_vector_iterator(vector_iterator<T> const&in) : pointer_(in.pointer_) {}
+  const_vector_iterator(vector_iterator<T> const&in) : pointer_(in.pointer_) {}
   const_vector_iterator& operator=(const_vector_iterator const&) = default;
 
   reference operator[](size_t i) {
