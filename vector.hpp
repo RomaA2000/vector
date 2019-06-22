@@ -126,7 +126,7 @@ struct const_vector_iterator {
   typedef T const & reference;
   const_vector_iterator() = default;
   const_vector_iterator(const_vector_iterator const&) = default;
-  const_vector_iterator(vector_iterator<T> const&in) : pointer_(in.pointer_) {}
+  explicit const_vector_iterator(vector_iterator<T> const&in) : pointer_(in.pointer_) {}
   const_vector_iterator& operator=(const_vector_iterator const&) = default;
 
   reference operator[](size_t i) {
@@ -219,8 +219,9 @@ class vector {
     size_t capacity = 0;
     size_t size = 0;
     size_t counter = 0;
+    T * ptr = nullptr;
     T *get_ptr() {
-      return reinterpret_cast<T *>(&counter + 1);
+      return reinterpret_cast<T *>(&ptr + 1);
     }
   };
 
@@ -233,6 +234,7 @@ class vector {
     tmp->capacity = n;
     tmp->size = 0;
     tmp->counter = 0;
+    tmp->ptr = tmp->get_ptr();
     return tmp;
   }
 
@@ -265,8 +267,6 @@ class vector {
       throw;
     }
     new_data->size = get_size();
-    new_data->capacity = n;
-    new_data->counter = 0;
     return new_data;
   }
 
@@ -286,9 +286,8 @@ class vector {
     dealloc(std::get<0>(data_));
     std::get<0>(data_) = nullptr;
   }
-  typedef std::variant<helper *, T> variant;
 
-  variant data_;
+  std::variant<helper *, T> data_;
 
   helper *get_helper() const noexcept {
     assert(data_.index() == 0);
@@ -312,7 +311,7 @@ class vector {
 
   T *get_data_ptr() const noexcept {
     assert(get_helper() != nullptr);
-    return get_helper()->get_ptr();
+    return get_helper()->ptr;
   }
 
   void detach() {
@@ -350,6 +349,13 @@ class vector {
   static_assert((sizeof(data_)) <= (sizeof(void *) + std::max(sizeof(T), sizeof(void *))));
 
   vector() noexcept = default;
+
+  template<typename I, typename std::enable_if<std::iterator_traits<I>::type, I>::type>
+  vector(I i1, I i2) : vector() {
+    for(;i1 != i2; ++i1) {
+      push_back(*i1);
+    }
+  }
 
   ~vector() noexcept {
     clear();
@@ -434,11 +440,9 @@ class vector {
         forget_helper();
       } else {
         --get_helper()->counter;
-        data_ = nullptr;
       }
-    } else {
-      data_ = nullptr;
     }
+    data_ = nullptr;
   }
 
   bool unique() const noexcept {
@@ -544,7 +548,7 @@ class vector {
         for (;i < get_size(); ++i) {
           tmp.push_back((*this)[i]);
         }
-       } catch (...) {
+      } catch (...) {
         tmp.clear();
         throw;
       }
@@ -595,14 +599,14 @@ class vector {
   }
 
   vector(vector const &in) : vector() {
-      if (in.small()) {
-        if (!in.empty()) {
-          push_back(in[0]);
-        }
-      } else {
-        data_ = in.get_helper();
-        ++get_helper()->counter;
+    if (in.small()) {
+      if (!in.empty()) {
+        push_back(in[0]);
       }
+    } else {
+      data_ = in.get_helper();
+      ++get_helper()->counter;
+    }
   }
 
   void reserve(size_t n) {
@@ -760,5 +764,4 @@ template<typename C>
 bool operator>(const vector<C> &in1, const vector<C> &in2) noexcept {
   return in2 < in1;
 }
-
 #endif //VECTOR_VECTOR_HPP
