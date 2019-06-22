@@ -350,7 +350,7 @@ class vector {
 
   vector() noexcept = default;
 
-  template<typename I, typename std::enable_if<std::iterator_traits<I>::type, I>::type>
+  template<typename I, typename = std::enable_if<std::is_same<typename std::iterator_traits<I>::value_type, T>::value, I>>
   vector(I i1, I i2) : vector() {
     for(;i1 != i2; ++i1) {
       push_back(*i1);
@@ -359,6 +359,18 @@ class vector {
 
   ~vector() noexcept {
     clear();
+  }
+
+  void resize(size_t sz, T const & in) {
+    if (sz > size()) {
+      while(sz != size()) {
+        push_back(in);
+      }
+    } else {
+      while(sz != size()) {
+        pop_back();
+      }
+    }
   }
 
   bool small() const noexcept {
