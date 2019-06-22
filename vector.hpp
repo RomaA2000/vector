@@ -357,6 +357,15 @@ class vector {
     }
   }
 
+  template<typename I, typename = std::enable_if<std::is_same<typename std::iterator_traits<I>::value_type, T>::value, I>>
+  void assign(I i1, I i2) {
+    clear();
+    for(;i1 != i2; ++i1) {
+      push_back(*i1);
+    }
+  }
+
+
   ~vector() noexcept {
     clear();
   }
